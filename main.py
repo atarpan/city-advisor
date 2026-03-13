@@ -72,6 +72,18 @@ def fetch_weather(city: str):
 
 # --- ENDPOINT-URI (Transformate în GET) ---
 
+@app.get("/")
+def home():
+    return {
+        "message": "Bun venit la City Advisor Pro API!",
+        "endpoints": {
+            "health": "/health",
+            "docs": "/docs (Interfață de testare)",
+            "advisor": "/advisor (Cere recomandări)",
+            "saved-trips": "/saved-trips (Vezi istoricul)"
+        }
+    }
+
 @app.get("/health")
 def health():
     return {"status": "ok", "mode": "GET", "database": "active"}
