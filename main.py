@@ -17,7 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🔑 CLEAN THE KEY (Remove any hidden spaces from Render)
+# 🔑 CLEAN THE KEY
 RAW_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_API_KEY = RAW_KEY.strip()
 
@@ -26,26 +26,16 @@ if GEMINI_API_KEY:
 
 @app.get("/")
 def home():
-    return {
-        "status": "online", 
-        "version": "DIAGNOSTIC-V6", 
-        "key_status": "Loaded" if GEMINI_API_KEY else "Missing",
-        "message": "Ready to test models!"
-    }
-
-@app.get("/debug-models")
-def list_models():
-    """See exactly which models your Render server can access."""
-    try:
-        if not GEMINI_API_KEY:
-            return {"error": "API Key is missing from Environment Variables"}
-        models = [m.name for m in genai.list_models()]
-        return {"available_models": models}
-    except Exception as e:
-        return {"error": str(e)}
+    return {"status": "online", "version": "V7-FINAL", "message": "Ready to go!"}
 
 @app.get("/advisor")
-def get_advice(query: str = Query(...), x_api_key: str = Query(...)):
+def get_advice(
+    query: str = Query(..., description="The user's question"),
+    x_api_key: str = Query(..., alias="x-api-key", description="Security key")
+):
+    """
+    Accepts 'x-api-key' with a dash to match the Frontend and common standards.
+    """
     # Security check
     if x_api_key != "secret-vibe-123":
         raise HTTPException(status_code=403, detail="Invalid App Key!")
@@ -53,28 +43,25 @@ def get_advice(query: str = Query(...), x_api_key: str = Query(...)):
     if not GEMINI_API_KEY:
         return {"status": "error", "message": "Gemini API Key is missing!"}
 
-    # Fallback system: try different models
+    # Fallback system for models
     model_names = ["gemini-1.5-flash", "gemini-pro", "models/gemini-1.5-flash"]
     selected_model = None
-    last_err = ""
-
+    
     for name in model_names:
         try:
             m = genai.GenerativeModel(name)
-            # Quick test
             m.generate_content("test")
             selected_model = m
             break
-        except Exception as e:
-            last_err = str(e)
+        except:
             continue
 
     if not selected_model:
-        return {"status": "error", "message": f"All models failed. Last error: {last_err}"}
+        return {"status": "error", "message": "No working AI models found in this region."}
 
     try:
         # 1. AI extracts city
-        city_res = selected_model.generate_content(f"City from: {query}. Return ONLY name.").text.strip()
+        city_res = selected_model.generate_content(f"Extract city from: {query}. Return ONLY name.").text.strip()
         
         # 2. Get Weather
         temp = "20"
@@ -94,8 +81,7 @@ def get_advice(query: str = Query(...), x_api_key: str = Query(...)):
             "status": "success",
             "city": city_res,
             "weather": {"temp": temp},
-            "recommendation": advice,
-            "engine": "V6-Stable"
+            "recommendation": advice
         }
     except Exception as e:
         return {"status": "error", "message": f"Processing error: {str(e)}"}
