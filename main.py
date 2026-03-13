@@ -112,31 +112,26 @@ def get_advice(
         raise HTTPException(status_code=500, detail="Configurație incorectă: Cheia Gemini lipsește.")
 
     try:
-        # Pasul 1: Extragere oraș (modificat pentru stabilitate)
-        prompt_city = f"Text: '{query}'. Return only the name of the city mentioned. If no city, return 'Unknown'."
-        response_city = client.models.generate_content(model=MODEL_NAME, contents=prompt_city)
+        # Pasul 1: Extragere oraș
+        response_city = client.models.generate_content(
+            model="gemini-1.5-flash", 
+            contents=f"Extract only city name from: '{query}'. Return 'Unknown' if none."
+        )
         city_name = response_city.text.strip().replace("City:", "").strip()
 
         if "Unknown" in city_name:
-            return {"status": "error", "message": "Te rog să incluzi un oraș în întrebarea ta."}
+            return {"status": "error", "message": "Te rog să incluzi un oraș."}
 
         # Pasul 2: Vreme reală
         weather = fetch_weather(city_name)
         temp = weather["temp"] if weather else "necunoscută"
 
         # Pasul 3: Recomandare AI detaliată
-        prompt_advice = f"""
-        Ești un ghid turistic expert în {city_name}. 
-        Utilizatorul întreabă: "{query}"
-        Vremea actuală: {temp}°C.
-        
-        Oferă o recomandare prietenoasă în limba română care să includă:
-        - Dacă vremea e bună pentru asta.
-        - 2-3 locații exacte din {city_name}.
-        - Un sfat despre îmbrăcăminte.
-        Folosește Markdown pentru formatare.
-        """
-        response_advice = client.models.generate_content(model=MODEL_NAME, contents=prompt_advice)
+        prompt_advice = f"Ghid turistic în {city_name}. Utilizator: {query}. Vreme: {temp}C. Recomandă activități în română."
+        response_advice = client.models.generate_content(
+            model="gemini-1.5-flash", 
+            contents=prompt_advice
+        )
         recommendation = response_advice.text
 
         # Pasul 4: Salvare în Baza de Date
