@@ -1,262 +1,80 @@
 <!DOCTYPE html>
-<html lang="ro">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>City Advisor Pro | AI Travel Agent</title>
-    <!-- Fonts & Icons -->
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Markdown Renderer -->
+    <title>City Advisor AI — Pro Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        :root {
-            --glass: rgba(255, 255, 255, 0.1);
-            --glass-border: rgba(255, 255, 255, 0.2);
-            --primary: #6366f1;
-            --secondary: #a855f7;
-            --text: #f8fafc;
-            --bg: #0f172a;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-        }
-
-        body {
-            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
-            color: var(--text);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 900px;
-            background: var(--glass);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            padding: 40px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            animation: fadeIn 0.8s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-
-        header h1 {
-            font-size: 2.5rem;
-            font-weight: 800;
-            background: linear-gradient(to right, #818cf8, #c084fc);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 10px;
-        }
-
-        header p {
-            color: #94a3b8;
-            font-size: 1.1rem;
-        }
-
-        /* Config Forms */
-        .config-row {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-
-        .input-group {
-            flex: 1;
-            position: relative;
-        }
-
-        .input-group i {
-            position: absolute;
-            left: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #64748b;
-        }
-
-        input, select {
-            width: 100%;
-            padding: 14px 14px 14px 45px;
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid var(--glass-border);
-            border-radius: 12px;
-            color: white;
-            font-size: 1rem;
-            transition: all 0.3s;
-        }
-
-        input:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
-        }
-
-        button {
-            width: 100%;
-            padding: 16px;
-            background: linear-gradient(to right, var(--primary), var(--secondary));
-            border: none;
-            border-radius: 12px;
-            color: white;
-            font-weight: 600;
-            font-size: 1.1rem;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-        }
-
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(99, 102, 241, 0.4);
-        }
-
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        /* Results Area */
-        #resultArea {
-            margin-top: 40px;
-            display: none;
-        }
-
-        .weather-card {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 20px;
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            margin-bottom: 25px;
-            border-left: 4px solid var(--primary);
-        }
-
-        .weather-icon {
-            font-size: 2.5rem;
-            color: #fbbf24;
-        }
-
-        .recommendation {
-            background: rgba(255, 255, 255, 0.03);
-            padding: 30px;
-            border-radius: 16px;
-            line-height: 1.7;
-            font-size: 1.05rem;
-            border: 1px solid var(--glass-border);
-        }
-
-        .recommendation h3 { margin-bottom: 15px; color: var(--secondary); }
-        .recommendation ul { margin-left: 20px; margin-bottom: 15px; }
-
-        /* Loading Spinner */
-        .spinner {
-            display: none;
-            width: 24px;
-            height: 24px;
-            border: 3px solid rgba(255,255,255,0.3);
-            border-radius: 50%;
-            border-top-color: white;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* History */
-        .history-btn {
-            margin-top: 20px;
-            background: transparent;
-            border: 1px solid var(--glass-border);
-            color: #94a3b8;
-            font-size: 0.9rem;
-        }
-
-        #historyList {
-            margin-top: 20px;
-            max-height: 200px;
-            overflow-y: auto;
-            display: none;
-        }
-
-        .history-item {
-            padding: 10px;
-            border-bottom: 1px solid var(--glass-border);
-            font-size: 0.85rem;
-            color: #cbd5e1;
-        }
+        body { font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .pro-gradient { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); }
+        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body>
+<body class="bg-[#020617] text-slate-200 min-h-screen flex flex-col items-center p-4 md:p-10">
 
-    <div class="container">
-        <header>
-            <h1>City Advisor Pro</h1>
-            <p>Planifică-ți aventura ideală cu ajutorul inteligenței artificiale.</p>
-        </header>
-
-        <div class="config-row">
-            <div class="input-group">
-                <i class="fas fa-key"></i>
-                <input type="password" id="apiKey" placeholder="App Secret Key (ex: secret-vibe-123)" value="secret-vibe-123">
-            </div>
-            <div class="input-group">
-                <i class="fas fa-link"></i>
-                <input type="text" id="baseUrl" placeholder="Backend URL (Render sau local)" value="http://127.0.0.1:8000">
-            </div>
+    <!-- Top Navigation / Settings -->
+    <div class="w-full max-w-4xl flex flex-col md:flex-row gap-4 mb-10 animate-fade-in">
+        <div class="flex-1 glass p-4 rounded-2xl flex items-center gap-3">
+            <i class="fas fa-link text-indigo-400"></i>
+            <input type="text" id="baseUrl" value="https://city-advisor.onrender.com" 
+                class="bg-transparent border-none outline-none w-full text-sm font-medium" placeholder="Backend URL">
         </div>
-
-        <div class="input-group" style="margin-bottom: 25px;">
-            <i class="fas fa-map-marker-alt"></i>
-            <input type="text" id="query" placeholder="Ce vrei să faci și în ce oraș? (ex: O cafea în Chișinău)">
+        <div class="glass p-4 rounded-2xl flex items-center gap-3">
+            <i class="fas fa-lock text-purple-400"></i>
+            <input type="password" id="apiKey" value="secret-vibe-123" 
+                class="bg-transparent border-none outline-none w-64 text-sm font-medium" placeholder="App Key">
         </div>
+    </div>
 
-        <button id="planBtn">
-            <span class="spinner" id="spinner"></span>
-            <span id="btnText"><i class="fas fa-magic"></i> Planifică Aventura</span>
+    <!-- Main Content -->
+    <div class="w-full max-w-4xl text-center mb-12 animate-fade-in" style="animation-delay: 0.1s">
+        <h1 class="text-5xl md:text-7xl font-extrabold tracking-tight mb-4 text-white">
+            Your AI <span class="text-transparent bg-clip-text pro-gradient">Travel Agent</span>
+        </h1>
+        <p class="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto">
+            Get personalized city recommendations based on live weather and local insights.
+        </p>
+    </div>
+
+    <!-- Search Box -->
+    <div class="w-full max-w-3xl glass p-2 rounded-3xl mb-12 flex items-center shadow-2xl animate-fade-in" style="animation-delay: 0.2s">
+        <input type="text" id="query" placeholder="Tell me what you want to do and in which city..." 
+            class="flex-1 bg-transparent p-4 md:p-6 text-lg outline-none border-none placeholder:text-slate-500">
+        <button id="planBtn" class="pro-gradient px-8 py-4 md:py-5 rounded-2xl font-bold text-white shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
+            <span id="btnText">Plan Adventure</span>
+            <div id="spinner" class="hidden w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
         </button>
+    </div>
 
-        <div id="resultArea">
-            <div class="weather-card">
-                <div class="weather-icon" id="weatherIcon">
-                    <i class="fas fa-cloud-sun"></i>
-                </div>
-                <div>
-                    <h2 id="cityDisplay">București</h2>
-                    <p id="tempDisplay">Vreme: 22°C</p>
+    <!-- Result Area -->
+    <div id="resultArea" class="w-full max-w-4xl hidden space-y-6 animate-fade-in">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Weather Card -->
+            <div class="glass p-6 rounded-3xl border-l-4 border-indigo-500">
+                <p class="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-2">Live Weather</p>
+                <div class="flex items-center justify-between">
+                    <h2 id="cityDisplay" class="text-2xl font-bold">City</h2>
+                    <span id="tempDisplay" class="text-3xl font-black text-white">--°C</span>
                 </div>
             </div>
-
-            <div class="recommendation" id="aiContent">
-                <!-- Recomandarea va apărea aici -->
+            <!-- Status Card -->
+            <div class="md:col-span-2 glass p-6 rounded-3xl border-l-4 border-emerald-500 flex items-center">
+                <p class="text-slate-400 italic">"The AI has analyzed your request and considered the local conditions..."</p>
             </div>
         </div>
 
-        <button class="history-btn" id="toggleHistory">
-            <i class="fas fa-history"></i> Vezi Istoricul Căutărilor
-        </button>
-        <div id="historyList"></div>
+        <!-- Recommendation Card -->
+        <div class="glass p-8 md:p-10 rounded-3xl shadow-xl">
+            <div id="aiContent" class="prose prose-invert prose-p:leading-relaxed prose-li:my-2 max-w-none text-slate-300">
+                <!-- AI Content Goes Here -->
+            </div>
+        </div>
     </div>
 
     <script>
@@ -265,70 +83,39 @@
         const btnText = document.getElementById('btnText');
         const resultArea = document.getElementById('resultArea');
         const aiContent = document.getElementById('aiContent');
-        const historyList = document.getElementById('historyList');
 
         planBtn.addEventListener('click', async () => {
             const query = document.getElementById('query').value;
             const apiKey = document.getElementById('apiKey').value;
             const baseUrl = document.getElementById('baseUrl').value;
 
-            if (!query) return alert("Te rog scrie ce vrei să faci!");
+            if (!query) return;
 
             // Loading state
             planBtn.disabled = true;
-            spinner.style.display = 'inline-block';
-            btnText.innerText = 'Se gândește...';
-            resultArea.style.display = 'none';
+            spinner.classList.remove('hidden');
+            btnText.innerText = 'Thinking...';
+            resultArea.classList.add('hidden');
 
             try {
                 const response = await fetch(`${baseUrl}/advisor?query=${encodeURIComponent(query)}&x-api-key=${apiKey}`);
                 const data = await response.json();
 
                 if (data.status === 'success') {
-                    // Update Weather
                     document.getElementById('cityDisplay').innerText = data.city;
-                    document.getElementById('tempDisplay').innerText = `Vreme: ${data.weather.temp}°C`;
-                    
-                    // Update AI Content (Convert Markdown to HTML)
+                    document.getElementById('tempDisplay').innerText = `${data.weather.temp}°C`;
                     aiContent.innerHTML = marked.parse(data.recommendation);
-                    
-                    resultArea.style.display = 'block';
+                    resultArea.classList.remove('hidden');
+                    window.scrollTo({ top: resultArea.offsetTop - 50, behavior: 'smooth' });
                 } else {
-                    alert("Eroare: " + data.message);
+                    alert("Error: " + data.message);
                 }
             } catch (error) {
-                console.error(error);
-                alert("Nu m-am putut conecta la backend. Verifică dacă serverul pornit.");
+                alert("Cannot connect to Backend. Is your Render server Live?");
             } finally {
                 planBtn.disabled = false;
-                spinner.style.display = 'none';
-                btnText.innerHTML = '<i class="fas fa-magic"></i> Planifică Aventura';
-            }
-        });
-
-        // History Toggle
-        document.getElementById('toggleHistory').addEventListener('click', async () => {
-            if (historyList.style.display === 'block') {
-                historyList.style.display = 'none';
-                return;
-            }
-
-            const apiKey = document.getElementById('apiKey').value;
-            const baseUrl = document.getElementById('baseUrl').value;
-
-            try {
-                const response = await fetch(`${baseUrl}/saved-trips?x-api-key=${apiKey}`);
-                const history = await response.json();
-                
-                historyList.innerHTML = history.map(item => `
-                    <div class="history-item">
-                        <strong>${item.timestamp}:</strong> ${item.query} (${item.city}, ${item.temperature}°C)
-                    </div>
-                `).join('');
-                
-                historyList.style.display = 'block';
-            } catch (e) {
-                alert("Nu am putut încărca istoricul.");
+                spinner.classList.add('hidden');
+                btnText.innerText = 'Plan Adventure';
             }
         });
     </script>
