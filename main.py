@@ -1,8 +1,7 @@
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import google.generativeai as genai
-import os
 import requests
+import os
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -16,67 +15,67 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🔑 API Config
+# 🔑 Auth Config
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
 
 @app.get("/")
 def home():
-    return {"status": "online", "message": "City Advisor Magic Mode is LIVE!"}
+    return {"status": "online", "method": "BULLETPROOF-V11", "key_loaded": bool(GEMINI_API_KEY)}
 
 @app.get("/advisor")
 def get_advice(
     query: str = Query(...),
     x_api_key: str = Query(..., alias="x-api-key")
 ):
-    # Security Check
+    # 1. Security Check
     if x_api_key != "secret-vibe-123":
-        raise HTTPException(status_code=403, detail="Invalid API Key")
+        raise HTTPException(status_code=403, detail="Invalid App Key")
 
     if not GEMINI_API_KEY:
-        return {"status": "error", "message": "Gemini Key missing on server"}
+        return {"status": "error", "message": "Gemini Key missing on Render settings"}
 
     try:
-        # 🤖 AUTOMATIC MODEL DISCOVERY (The Magic Fix)
-        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        
-        # Select best available model
-        model_name = "gemini-1.5-flash" 
-        if "models/gemini-2.5-flash" in available_models:
-            model_name = "models/gemini-2.5-flash"
-        elif "models/gemini-1.5-flash" in available_models:
-            model_name = "models/gemini-1.5-flash"
-        elif available_models:
-            model_name = available_models[0]
-
-        model = genai.GenerativeModel(model_name)
-        
-        # 1. Extract City
-        city_res = model.generate_content(f"Extract city name from: {query}. Return ONLY name.").text.strip()
-        
-        # 2. Get Weather
-        temp = "20"
+        # 2. Get Weather (Chisinau default if not found)
+        temp = "15"
+        city_name = "Chișinău"
         try:
-            geo = requests.get(f"https://geocoding-api.open-meteo.com/v1/search?name={city_res}&count=1").json()
+            # Simple prompt to extract city
+            extract_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+            extract_payload = {"contents": [{"parts": [{"text": f"Extract only city name from: '{query}'. Return only the name."}]}]}
+            city_res = requests.post(extract_url, json=extract_payload).json()
+            city_name = city_res['candidates'][0]['content']['parts'][0]['text'].strip()
+            
+            geo = requests.get(f"https://geocoding-api.open-meteo.com/v1/search?name={city_name}&count=1").json()
             if geo.get("results"):
                 res = geo["results"][0]
                 w = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={res['latitude']}&longitude={res['longitude']}&current_weather=true").json()
                 temp = w["current_weather"]["temperature"]
         except: pass
 
-        # 3. Generate Recommendation
-        response = model.generate_content(f"Sunt în {city_res}, sunt {temp} grade. Recomandă ce să fac pentru: {query} în limba română.")
+        # 3. Get AI Recommendation (DIRECT HTTP CALL)
+        ai_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+        ai_payload = {
+            "contents": [{
+                "parts": [{"text": f"Ești un ghid în {city_name}. Vremea e de {temp} grade. Recomandă ce să fac pentru: {query}. Răspunde prietenos în română."}]
+            }]
+        }
+        
+        ai_res = requests.post(ai_url, json=ai_payload, timeout=15).json()
+        
+        # Check for Google Errors
+        if "error" in ai_res:
+            return {"status": "error", "message": ai_res["error"]["message"]}
+
+        recommendation = ai_res['candidates'][0]['content']['parts'][0]['text']
         
         return {
             "status": "success",
-            "city": city_res,
+            "city": city_name,
             "weather": {"temp": temp},
-            "recommendation": response.text,
-            "model_used": model_name
+            "recommendation": recommendation
         }
     except Exception as e:
-        return {"status": "error", "message": f"AI Logic Error: {str(e)}"}
+        return {"status": "error", "message": f"Server Error: {str(e)}"}
 
 if __name__ == "__main__":
     import uvicorn
