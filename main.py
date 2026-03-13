@@ -23,36 +23,46 @@ if GEMINI_API_KEY:
 
 @app.get("/")
 def home():
-    return {"status": "online", "version": "ROBUST-V4", "message": "Backend is ready!"}
+    return {
+        "status": "online", 
+        "version": "REGION-SAFE-V5", 
+        "message": "If you see this, the deploy worked!"
+    }
 
 @app.get("/advisor")
 def get_advice(query: str = Query(...), x_api_key: str = Query(...)):
-    # Security check
     if x_api_key != "secret-vibe-123":
         raise HTTPException(status_code=403, detail="Invalid API Key!")
 
     if not GEMINI_API_KEY:
-        return {"status": "error", "message": "Gemini API Key is missing on Render!"}
+        return {"status": "error", "message": "API Key is missing!"}
+
+    # List of possible model names to try for region compatibility
+    possible_models = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-pro"]
+    
+    selected_model = None
+    last_error = ""
+
+    for model_name in possible_models:
+        try:
+            model = genai.GenerativeModel(model_name)
+            # Try a very simple test call
+            model.generate_content("Hi")
+            selected_model = model
+            break
+        except Exception as e:
+            last_error = str(e)
+            continue
+
+    if not selected_model:
+        return {
+            "status": "error", 
+            "message": f"Region error: No models found. Last error: {last_error}"
+        }
 
     try:
-        # Try different model names for maximum compatibility
-        model_names = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-pro"]
-        model = None
-        
-        for name in model_names:
-            try:
-                model = genai.GenerativeModel(name)
-                # Test the model with a tiny request
-                model.generate_content("test")
-                break 
-            except:
-                continue
-        
-        if not model:
-            return {"status": "error", "message": "Could not connect to any Gemini model."}
-
         # 1. Extract City
-        city_res = model.generate_content(f"Extract city name from: '{query}'. Return ONLY the name. Default: London").text.strip()
+        city_res = selected_model.generate_content(f"City from: '{query}'. Return ONLY the name. Default: London").text.strip()
         
         # 2. Get Weather
         temp = "20"
@@ -66,8 +76,8 @@ def get_advice(query: str = Query(...), x_api_key: str = Query(...)):
             pass
 
         # 3. Final Recommendation
-        advice_prompt = f"I am in {city_res}, the weather is {temp} degrees. Recommend activities for: {query} (in Romanian language)."
-        recommendation = model.generate_content(advice_prompt).text
+        advice_prompt = f"I am in {city_res}, weather is {temp}C. Plan for: {query} (in Romanian language)."
+        recommendation = selected_model.generate_content(advice_prompt).text
 
         return {
             "status": "success",
@@ -76,7 +86,7 @@ def get_advice(query: str = Query(...), x_api_key: str = Query(...)):
             "recommendation": recommendation
         }
     except Exception as e:
-        return {"status": "error", "message": f"AI Error: {str(e)}"}
+        return {"status": "error", "message": f"AI Logic Error: {str(e)}"}
 
 if __name__ == "__main__":
     import uvicorn
