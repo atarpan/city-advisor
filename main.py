@@ -1,10 +1,9 @@
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import google.generativeai as genai
-import requests
 import os
+import requests
 from dotenv import load_dotenv
-from typing import Optional
 
 load_dotenv()
 
@@ -17,51 +16,44 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🔑 CLEAN THE KEY
-RAW_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_API_KEY = RAW_KEY.strip()
-
+# 🔑 API Config
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
 @app.get("/")
 def home():
-    return {"status": "online", "version": "V7-FINAL", "message": "Ready to go!"}
+    return {"status": "online", "message": "City Advisor Magic Mode is LIVE!"}
 
 @app.get("/advisor")
 def get_advice(
-    query: str = Query(..., description="The user's question"),
-    x_api_key: str = Query(..., alias="x-api-key", description="Security key")
+    query: str = Query(...),
+    x_api_key: str = Query(..., alias="x-api-key")
 ):
-    """
-    Accepts 'x-api-key' with a dash to match the Frontend and common standards.
-    """
-    # Security check
+    # Security Check
     if x_api_key != "secret-vibe-123":
-        raise HTTPException(status_code=403, detail="Invalid App Key!")
+        raise HTTPException(status_code=403, detail="Invalid API Key")
 
     if not GEMINI_API_KEY:
-        return {"status": "error", "message": "Gemini API Key is missing!"}
-
-    # Fallback system for models
-    model_names = ["gemini-1.5-flash", "gemini-pro", "models/gemini-1.5-flash"]
-    selected_model = None
-    
-    for name in model_names:
-        try:
-            m = genai.GenerativeModel(name)
-            m.generate_content("test")
-            selected_model = m
-            break
-        except:
-            continue
-
-    if not selected_model:
-        return {"status": "error", "message": "No working AI models found in this region."}
+        return {"status": "error", "message": "Gemini Key missing on server"}
 
     try:
-        # 1. AI extracts city
-        city_res = selected_model.generate_content(f"Extract city from: {query}. Return ONLY name.").text.strip()
+        # 🤖 AUTOMATIC MODEL DISCOVERY (The Magic Fix)
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        # Select best available model
+        model_name = "gemini-1.5-flash" 
+        if "models/gemini-2.5-flash" in available_models:
+            model_name = "models/gemini-2.5-flash"
+        elif "models/gemini-1.5-flash" in available_models:
+            model_name = "models/gemini-1.5-flash"
+        elif available_models:
+            model_name = available_models[0]
+
+        model = genai.GenerativeModel(model_name)
+        
+        # 1. Extract City
+        city_res = model.generate_content(f"Extract city name from: {query}. Return ONLY name.").text.strip()
         
         # 2. Get Weather
         temp = "20"
@@ -71,20 +63,20 @@ def get_advice(
                 res = geo["results"][0]
                 w = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={res['latitude']}&longitude={res['longitude']}&current_weather=true").json()
                 temp = w["current_weather"]["temperature"]
-        except:
-            pass
+        except: pass
 
-        # 3. Final Recommendation
-        advice = selected_model.generate_content(f"I am in {city_res}, {temp}C. Plan for: {query} (in Romanian language).").text
+        # 3. Generate Recommendation
+        response = model.generate_content(f"Sunt în {city_res}, sunt {temp} grade. Recomandă ce să fac pentru: {query} în limba română.")
         
         return {
             "status": "success",
             "city": city_res,
             "weather": {"temp": temp},
-            "recommendation": advice
+            "recommendation": response.text,
+            "model_used": model_name
         }
     except Exception as e:
-        return {"status": "error", "message": f"Processing error: {str(e)}"}
+        return {"status": "error", "message": f"AI Logic Error: {str(e)}"}
 
 if __name__ == "__main__":
     import uvicorn
