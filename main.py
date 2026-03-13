@@ -5,10 +5,16 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 import requests
 import os
+import json
+import logging
 from datetime import datetime
 from google import genai
 from dotenv import load_dotenv
 from typing import Dict, Any, List, Optional
+
+# Configurare Log-uri (pentru a vedea erorile pe Render)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # 1. Configurare Mediu & Bază de Date
 load_dotenv()
@@ -17,7 +23,6 @@ engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# Model Bază de Date
 class Trip(Base):
     __tablename__ = "trips"
     id = Column(Integer, primary_key=True, index=True)
@@ -37,7 +42,7 @@ def get_db():
         db.close()
 
 # 2. Configurare FastAPI
-app = FastAPI(title="City Advisor Pro (GET Mode)")
+app = FastAPI(title="City Advisor Ultra Pro")
 
 app.add_middleware(
     CORSMiddleware,
@@ -48,90 +53,102 @@ app.add_middleware(
 )
 
 # 3. Securitate & AI
-MY_APP_AUTH_KEY = os.getenv("APP_AUTH_KEY", "secret-vibe-123")
+MY_APP_AUTH_KEY = "secret-vibe-123" # Am pus-o fixă pentru a fi siguri
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Inițializare Client nou SDK
 client = genai.Client(api_key=GEMINI_API_KEY)
 MODEL_NAME = "gemini-1.5-flash"
 
-async def verify_api_key(x_api_key: str = Header(None)):
-    """Verifică Header-ul 'x-api-key'."""
-    if x_api_key != MY_APP_AUTH_KEY:
-        raise HTTPException(status_code=403, detail="Acces refuzat: Cheie API invalidă.")
-    return x_api_key
+async def verify_api_key(
+    x_api_key_header: Optional[str] = Header(None, alias="x-api-key"),
+    x_api_key_query: Optional[str] = Query(None, alias="x-api-key")
+):
+    """Verifică cheia de acces atât în Header cât și în URL."""
+    auth_key = x_api_key_header or x_api_key_query
+    
+    # Adăugăm un print pentru debugging în log-urile Render
+    print(f"DEBUG: Primit auth_key: {auth_key}")
+    
+    if auth_key != MY_APP_AUTH_KEY:
+        logger.warning(f"Tentativă de acces neautorizat cu cheia: {auth_key}")
+        raise HTTPException(status_code=403, detail=f"Acces refuzat: Cheia '{auth_key}' este invalidă.")
+    return auth_key
 
 # 4. Funcții Utilitare
 def fetch_weather(city: str):
     try:
-        geo = requests.get(f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1").json()
+        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1"
+        geo = requests.get(geo_url, timeout=10).json()
         if not geo.get("results"): return None
         res = geo["results"][0]
-        w = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={res['latitude']}&longitude={res['longitude']}&current_weather=true").json()
+        w_url = f"https://api.open-meteo.com/v1/forecast?latitude={res['latitude']}&longitude={res['longitude']}&current_weather=true"
+        w = requests.get(w_url, timeout=10).json()
         return {"city": res["name"], "temp": w["current_weather"]["temperature"]}
-    except:
+    except Exception as e:
+        logger.error(f"Eroare la meteo pentru {city}: {str(e)}")
         return None
 
-# --- ENDPOINT-URI (Transformate în GET) ---
+# --- ENDPOINT-URI ---
 
 @app.get("/")
 def home():
-    return {
-        "message": "Bun venit la City Advisor Pro API!",
-        "endpoints": {
-            "health": "/health",
-            "docs": "/docs (Interfață de testare)",
-            "advisor": "/advisor (Cere recomandări)",
-            "saved-trips": "/saved-trips (Vezi istoricul)"
-        }
-    }
+    return {"status": "online", "message": "City Advisor Pro este gata de aventură!"}
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "mode": "GET", "database": "active"}
+    return {
+        "status": "ok",
+        "gemini_configured": bool(GEMINI_API_KEY),
+        "database": "active"
+    }
 
 @app.get("/advisor", dependencies=[Depends(verify_api_key)])
 def get_advice(
-    query: str = Query(..., description="Întrebarea ta (ex: Vreau să joc biliard în Chișinău)"),
-    days: int = Query(1, description="Număr de zile"),
-    interests: str = Query("mâncare, cultură", description="Interese separate prin virgulă"),
+    query: str = Query(..., description="Întrebarea ta"),
     db: Session = Depends(get_db)
 ):
-    """
-    Acum funcționează cu GET! 
-    Exemplu URL: /advisor?query=Bucuresti&days=1
-    IMPORTANT: Trebuie să trimiți Header-ul 'x-api-key'.
-    """
+    if not GEMINI_API_KEY:
+        raise HTTPException(status_code=500, detail="Configurație incorectă: Cheia Gemini lipsește.")
+
     try:
-        # AI extrage orașul
-        city_res = client.models.generate_content(
-            model=MODEL_NAME, 
-            contents=f"Extract only city name from: '{query}'. If none, return 'Unknown'."
-        )
-        city_name = city_res.text.strip()
-        
+        # Pasul 1: Extragere oraș (modificat pentru stabilitate)
+        prompt_city = f"Text: '{query}'. Return only the name of the city mentioned. If no city, return 'Unknown'."
+        response_city = client.models.generate_content(model=MODEL_NAME, contents=prompt_city)
+        city_name = response_city.text.strip().replace("City:", "").strip()
+
+        if "Unknown" in city_name:
+            return {"status": "error", "message": "Te rog să incluzi un oraș în întrebarea ta."}
+
+        # Pasul 2: Vreme reală
         weather = fetch_weather(city_name)
-        temp = weather["temp"] if weather else 0
+        temp = weather["temp"] if weather else "necunoscută"
+
+        # Pasul 3: Recomandare AI detaliată
+        prompt_advice = f"""
+        Ești un ghid turistic expert în {city_name}. 
+        Utilizatorul întreabă: "{query}"
+        Vremea actuală: {temp}°C.
         
-        # AI generează recomandarea detaliată
-        ai_prompt = f"""
-        Utilizatorul vrea: {query}. 
-        Vreme actuală în {city_name}: {temp}°C. 
-        Plan pentru {days} zile. Interese: {interests}.
-        Oferă un plan detaliat în română.
+        Oferă o recomandare prietenoasă în limba română care să includă:
+        - Dacă vremea e bună pentru asta.
+        - 2-3 locații exacte din {city_name}.
+        - Un sfat despre îmbrăcăminte.
+        Folosește Markdown pentru formatare.
         """
-        recommendation = client.models.generate_content(model=MODEL_NAME, contents=ai_prompt).text
-        
-        # SALVARE ÎN BAZA DE DATE
+        response_advice = client.models.generate_content(model=MODEL_NAME, contents=prompt_advice)
+        recommendation = response_advice.text
+
+        # Pasul 4: Salvare în Baza de Date
         new_trip = Trip(
             query=query,
             city=city_name,
-            temperature=temp,
+            temperature=float(temp) if isinstance(temp, (int, float)) else 0.0,
             recommendation=recommendation
         )
         db.add(new_trip)
         db.commit()
-        
+
         return {
             "status": "success",
             "city": city_name,
@@ -139,15 +156,14 @@ def get_advice(
             "recommendation": recommendation
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"EROARE ADVISOR: {str(e)}")
+        return {"status": "error", "message": f"Eroare la procesarea AI: {str(e)}"}
 
 @app.get("/saved-trips", dependencies=[Depends(verify_api_key)])
 def list_trips(db: Session = Depends(get_db)):
-    """Afișează istoricul din baza de date."""
     return db.query(Trip).order_by(Trip.timestamp.desc()).all()
 
 if __name__ == "__main__":
     import uvicorn
-    # Portul este citit din mediu pentru Deploy (Render)
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
