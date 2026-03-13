@@ -50,6 +50,8 @@ app.add_middleware(
 # 3. Securitate & AI
 MY_APP_AUTH_KEY = os.getenv("APP_AUTH_KEY", "secret-vibe-123")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+# Inițializare Client nou SDK
 client = genai.Client(api_key=GEMINI_API_KEY)
 MODEL_NAME = "gemini-1.5-flash"
 
