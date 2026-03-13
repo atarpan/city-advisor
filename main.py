@@ -16,60 +16,67 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🔑 CONFIGURARE GEMINI
+# 🔑 CONFIGURATION
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
-    # Folosim cea mai stabilă metodă de inițializare
-    model = genai.GenerativeModel('gemini-1.5-flash')
 
 @app.get("/")
 def home():
-    # Mesaj de verificare: Dacă vezi asta, înseamnă că ai versiunea NOUĂ!
-    return {
-        "status": "online", 
-        "version": "V3-ULTRA-STABLE",
-        "message": "Dacă vezi acest mesaj, Render a terminat deploy-ul corect!"
-    }
+    return {"status": "online", "version": "ROBUST-V4", "message": "Backend is ready!"}
 
 @app.get("/advisor")
 def get_advice(query: str = Query(...), x_api_key: str = Query(...)):
-    # Securitate simplă
+    # Security check
     if x_api_key != "secret-vibe-123":
-        raise HTTPException(status_code=403, detail="Cheie API invalidă!")
+        raise HTTPException(status_code=403, detail="Invalid API Key!")
 
     if not GEMINI_API_KEY:
-        return {"status": "error", "message": "Cheia Gemini lipsește de pe Render!"}
+        return {"status": "error", "message": "Gemini API Key is missing on Render!"}
 
     try:
-        # Pasul 1: AI află orașul
-        city_prompt = f"Extract city name from: '{query}'. Return only the name. If none, return 'Bucuresti'."
-        city_res = model.generate_content(city_prompt).text.strip()
+        # Try different model names for maximum compatibility
+        model_names = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-pro"]
+        model = None
         
-        # Pasul 2: Vremea (simplificată)
-        temp = "20" # Valoare de siguranță
+        for name in model_names:
+            try:
+                model = genai.GenerativeModel(name)
+                # Test the model with a tiny request
+                model.generate_content("test")
+                break 
+            except:
+                continue
+        
+        if not model:
+            return {"status": "error", "message": "Could not connect to any Gemini model."}
+
+        # 1. Extract City
+        city_res = model.generate_content(f"Extract city name from: '{query}'. Return ONLY the name. Default: London").text.strip()
+        
+        # 2. Get Weather
+        temp = "20"
         try:
             geo = requests.get(f"https://geocoding-api.open-meteo.com/v1/search?name={city_res}&count=1").json()
             if geo.get("results"):
-                res = geo["results"][0]
-                w = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={res['latitude']}&longitude={res['longitude']}&current_weather=true").json()
+                coords = geo["results"][0]
+                w = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={coords['latitude']}&longitude={coords['longitude']}&current_weather=true").json()
                 temp = w["current_weather"]["temperature"]
         except:
             pass
 
-        # Pasul 3: Recomandarea finală
-        advice_prompt = f"Sunt în {city_res}, e vreme de {temp} grade. Recomandă activități pentru: {query} (în română)."
+        # 3. Final Recommendation
+        advice_prompt = f"I am in {city_res}, the weather is {temp} degrees. Recommend activities for: {query} (in Romanian language)."
         recommendation = model.generate_content(advice_prompt).text
 
         return {
             "status": "success",
             "city": city_res,
             "weather": {"temp": temp},
-            "recommendation": recommendation,
-            "backend_version": "V3"
+            "recommendation": recommendation
         }
     except Exception as e:
-        return {"status": "error", "message": f"Eroare AI: {str(e)}"}
+        return {"status": "error", "message": f"AI Error: {str(e)}"}
 
 if __name__ == "__main__":
     import uvicorn
